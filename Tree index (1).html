@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CanopyWatch — Urban Tree Equity Mapper</title>
+  <meta name="description" content="Visualize tree canopy coverage, heat vulnerability, and environmental justice gaps across Philadelphia neighborhoods." />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,400&family=DM+Mono:wght@400;500&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─── DESIGN TOKENS ─────────────────────────────────────── */
+    :root {
+      --forest:    #1a3a2a;
+      --canopy:    #2d6a4f;
+      --leaf:      #52b788;
+      --sprout:    #95d5b2;
+      --mist:      #d8f3dc;
+      --bark:      #8b5e3c;
+      --soil:      #3d2314;
+      --heat-lo:   #ffd166;
+      --heat-md:   #ef8c45;
+      --heat-hi:   #d62828;
+      --paper:     #f5f0e8;
+      --ink:       #1a1a18;
+      --ghost:     rgba(26,58,42,0.06);
+      --shadow:    0 4px 24px rgba(26,58,42,0.13);
+      --shadow-lg: 0 12px 48px rgba(26,58,42,0.18);
+      --radius:    14px;
+      --transition: 0.28s cubic-bezier(0.34,1.56,0.64,1);
+    }
+
+    /* ─── RESET & BASE ──────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── BACKGROUND TEXTURE ────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        radial-gradient(circle at 15% 85%, rgba(82,183,136,0.08) 0%, transparent 50%),
+        radial-gradient(circle at 85% 15%, rgba(45,106,79,0.06) 0%, transparent 50%),
+        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%232d6a4f' fill-opacity='0.025'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── LAYOUT ────────────────────────────────────────────── */
+    .container { max-width: 1180px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* ─── HEADER ────────────────────────────────────────────── */
+    header {
+      background: var(--forest);
+      color: white;
+      padding: 0;
+      position: relative;
+      overflow: hidden;
+    }
+    header::after {
+      content: '';
+      position: absolute; bottom: -2px; left: 0; right: 0; height: 60px;
+      background: var(--paper);
+      clip-path: ellipse(55% 100% at 50% 100%);
+    }
+
+    /* Animated canopy silhouette */
+    .canopy-bg {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 160px; pointer-events: none; overflow: hidden;
+    }
+    .canopy-bg svg { width: 100%; height: 100%; }
+
+    .header-inner {
+      padding: 56px 24px 80px;
+      max-width: 1180px; margin: 0 auto;
+      position: relative; z-index: 2;
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 24px; flex-wrap: wrap;
+    }
+
+    .logo-mark {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+    }
+    .logo-icon {
+      width: 44px; height: 44px;
+      background: var(--leaf); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      animation: sway 4s ease-in-out infinite;
+    }
+    @keyframes sway {
+      0%, 100% { transform: rotate(-4deg); }
+      50% { transform: rotate(4deg); }
+    }
+    .logo-text {
+      font-family: 'Fraunces', serif;
+      font-size: 1.1rem; font-weight: 300; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--sprout); opacity: 0.9;
+    }
+
+    h1 {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(2.8rem, 6vw, 5rem);
+      font-weight: 900; line-height: 1.0;
+      color: white; max-width: 640px;
+    }
+    h1 span { color: var(--leaf); }
+
+    .tagline {
+      margin-top: 16px; font-size: 1.05rem;
+      color: rgba(255,255,255,0.7); max-width: 520px;
+      font-family: 'Fraunces', serif; font-style: italic; font-weight: 300;
+    }
+
+    .header-stats {
+      display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px;
+    }
+    .h-stat {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 10px; padding: 14px 20px; text-align: center;
+      backdrop-filter: blur(6px);
+    }
+    .h-stat-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 1.7rem; font-weight: 500; color: var(--sprout);
+      display: block;
+    }
+    .h-stat-label {
+      font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: 0.09em; color: rgba(255,255,255,0.55);
+      margin-top: 2px;
+    }
+
+    /* ─── NAV TABS ──────────────────────────────────────────── */
+    .nav-tabs {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      margin: 40px 0 32px; padding: 6px;
+      background: white; border-radius: 16px;
+      border: 1.5px solid rgba(45,106,79,0.12);
+      box-shadow: var(--shadow);
+      width: fit-content;
+    }
+    .tab-btn {
+      padding: 10px 22px; border: none; background: transparent;
+      border-radius: 11px; cursor: pointer; font-family: 'Syne', sans-serif;
+      font-size: 0.88rem; font-weight: 700; letter-spacing: 0.04em;
+      color: rgba(26,26,24,0.5); transition: all 0.2s;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .tab-btn:hover { color: var(--canopy); background: var(--ghost); }
+    .tab-btn.active {
+      background: var(--forest); color: white;
+      box-shadow: 0 3px 12px rgba(26,58,42,0.25);
+    }
+    .tab-btn .tab-icon { font-size: 1rem; }
+
+    /* ─── SECTION ───────────────────────────────────────────── */
+    .section { display: none; animation: fadeUp 0.4s ease; }
+    .section.active { display: block; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── CARDS ─────────────────────────────────────────────── */
+    .card {
+      background: white; border-radius: var(--radius);
+      border: 1.5px solid rgba(45,106,79,0.1);
+      box-shadow: var(--shadow); padding: 28px;
+      transition: box-shadow 0.2s;
+    }
+    .card:hover { box-shadow: var(--shadow-lg); }
+    .card-title {
+      font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: 0.12em; color: var(--canopy);
+      font-weight: 700; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title::before {
+      content: ''; width: 20px; height: 2px;
+      background: var(--leaf); border-radius: 2px;
+    }
+
+    /* ─── GRID ──────────────────────────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .grid-auto { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+    @media (max-width: 768px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    /* ─── NEIGHBORHOOD MAP ──────────────────────────────────── */
+    .map-wrap {
+      display: grid; grid-template-columns: 1fr 380px; gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 900px) { .map-wrap { grid-template-columns: 1fr; } }
+
+    #neighborhood-grid {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+    }
+
+    .n-cell {
+      aspect-ratio: 1; border-radius: 10px; cursor: pointer;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-size: 0.58rem; font-weight: 700; text-align: center;
+      line-height: 1.2; padding: 4px;
+      transition: transform var(--transition), box-shadow 0.2s;
+      position: relative; border: 2px solid transparent;
+      color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+    .n-cell:hover { transform: scale(1.1); z-index: 2; box-shadow: 0 6px 20px rgba(0,0,0,0.18); }
+    .n-cell.selected { border-color: white; box-shadow: 0 0 0 3px var(--canopy), 0 6px 20px rgba(0,0,0,0.2); z-index: 3; transform: scale(1.12); }
+
+    .n-cell .coverage-badge {
+      position: absolute; top: 4px; right: 4px;
+      background: rgba(255,255,255,0.25);
+      border-radius: 4px; font-size: 0.52rem;
+      padding: 1px 4px; font-family: 'DM Mono', monospace;
+    }
+
+    /* ─── DETAIL PANEL ──────────────────────────────────────── */
+    .detail-panel {
+      background: white; border-radius: var(--radius);
+      border: 1.5px solid rgba(45,106,79,0.12);
+      box-shadow: var(--shadow); overflow: hidden;
+      position: sticky; top: 20px;
+    }
+    .detail-header {
+      background: var(--forest); color: white;
+      padding: 20px 24px;
+    }
+    .detail-header h3 {
+      font-family: 'Fraunces', serif; font-size: 1.3rem;
+      font-weight: 700;
+    }
+    .detail-header p {
+      font-size: 0.82rem; color: rgba(255,255,255,0.65);
+      margin-top: 4px;
+    }
+    .detail-body { padding: 20px 24px; }
+
+    .metric-row {
+      display: flex; justify-content: space-between;
+      align-items: center; padding: 10px 0;
+      border-bottom: 1px solid rgba(45,106,79,0.08);
+    }
+    .metric-row:last-child { border-bottom: none; }
+    .metric-label {
+      font-size: 0.78rem; color: rgba(26,26,24,0.55);
+      font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .metric-val {
+      font-family: 'DM Mono', monospace;
+      font-size: 1rem; font-weight: 500;
+    }
+
+    /* mini bar */
+    .mini-bar-wrap { margin-top: 4px; }
+    .mini-bar-bg { height: 6px; background: var(--mist); border-radius: 3px; overflow: hidden; }
+    .mini-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1); }
+
+    /* equity score ring */
+    .equity-ring-wrap { text-align: center; padding: 20px 0 8px; }
+    .equity-ring {
+      width: 110px; height: 110px; margin: 0 auto;
+      position: relative;
+    }
+    .equity-ring svg { transform: rotate(-90deg); }
+    .equity-ring-label {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-family: 'DM Mono', monospace;
+    }
+    .equity-ring-num { font-size: 1.6rem; font-weight: 500; }
+    .equity-ring-sub { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(26,26,24,0.45); }
+
+    .action-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 20px;
+      font-size: 0.75rem; font-weight: 700;
+      margin: 4px 4px 0 0;
+    }
+
+    /* ─── CHARTS ────────────────────────────────────────────── */
+    .chart-container { position: relative; height: 260px; width: 100%; }
+
+    /* bar chart */
+    .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+    .bar-row { display: flex; align-items: center; gap: 12px; }
+    .bar-name { font-size: 0.75rem; font-weight: 700; width: 130px; flex-shrink: 0; line-height: 1.2; text-align: right; }
+    .bar-track { flex: 1; height: 28px; background: var(--mist); border-radius: 6px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 6px; transition: width 1.2s cubic-bezier(0.34,1.56,0.64,1); display: flex; align-items: center; padding-left: 10px; }
+    .bar-val { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: white; font-weight: 500; }
+    .bar-benchmark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: 0.25; }
+
+    /* scatter plot */
+    #scatter-canvas { width: 100%; height: 100%; }
+
+    /* ─── EQUITY DASHBOARD ──────────────────────────────────── */
+    .equity-card {
+      background: white; border-radius: var(--radius);
+      border-left: 5px solid;
+      padding: 22px 24px; box-shadow: var(--shadow);
+    }
+    .equity-card.critical { border-color: var(--heat-hi); }
+    .equity-card.concern  { border-color: var(--heat-md); }
+    .equity-card.moderate { border-color: var(--heat-lo); }
+    .equity-card.good     { border-color: var(--leaf); }
+    .equity-card h4 { font-family: 'Fraunces', serif; font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
+    .equity-card p  { font-size: 0.82rem; color: rgba(26,26,24,0.6); line-height: 1.55; }
+    .equity-card .score {
+      font-family: 'DM Mono', monospace; font-size: 2rem;
+      font-weight: 500; float: right; margin-left: 16px;
+    }
+    .tag {
+      display: inline-block; font-size: 0.68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 3px 10px; border-radius: 20px;
+      margin-right: 6px; margin-bottom: 6px; margin-top: 10px;
+    }
+
+    /* ─── POLICY ACTION GENERATOR ───────────────────────────── */
+    .policy-select-row {
+      display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 24px;
+    }
+    .policy-select-wrap { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 180px; }
+    .policy-select-wrap label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--canopy); }
+    select, input[type=range] {
+      padding: 10px 14px; border-radius: 10px;
+      border: 1.5px solid rgba(45,106,79,0.2);
+      background: white; font-family: 'Syne', sans-serif;
+      font-size: 0.88rem; color: var(--ink);
+      cursor: pointer; transition: border-color 0.2s;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M0 0l6 8 6-8z' fill='%232d6a4f'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center;
+      padding-right: 32px;
+    }
+    select:focus { outline: none; border-color: var(--leaf); box-shadow: 0 0 0 3px rgba(82,183,136,0.15); }
+
+    .generate-btn {
+      background: var(--forest); color: white;
+      border: none; border-radius: 12px;
+      padding: 14px 32px; font-family: 'Syne', sans-serif;
+      font-size: 0.95rem; font-weight: 800; cursor: pointer;
+      transition: transform var(--transition), box-shadow 0.2s;
+      letter-spacing: 0.04em; display: flex; align-items: center; gap: 10px;
+    }
+    .generate-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(26,58,42,0.25);
+    }
+    .generate-btn:active { transform: translateY(0); }
+
+    .policy-output {
+      background: var(--forest); color: white;
+      border-radius: var(--radius); padding: 28px;
+      margin-top: 20px; position: relative; overflow: hidden;
+      animation: fadeUp 0.4s ease;
+    }
+    .policy-output::before {
+      content: '"';
+      position: absolute; top: -20px; left: 20px;
+      font-family: 'Fraunces', serif;
+      font-size: 160px; color: rgba(255,255,255,0.04);
+      line-height: 1;
+    }
+    .policy-output h3 {
+      font-family: 'Fraunces', serif; font-size: 1.4rem;
+      margin-bottom: 16px; color: var(--sprout);
+    }
+    .policy-section { margin-bottom: 20px; }
+    .policy-section-title {
+      font-size: 0.7rem; text-transform: uppercase;
+      letter-spacing: 0.12em; color: rgba(255,255,255,0.45);
+      margin-bottom: 8px; font-weight: 700;
+    }
+    .policy-section p { font-size: 0.9rem; line-height: 1.65; color: rgba(255,255,255,0.88); }
+    .policy-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .policy-action-btn {
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+      color: white; border-radius: 8px; padding: 8px 18px;
+      font-family: 'Syne', sans-serif; font-size: 0.8rem;
+      font-weight: 700; cursor: pointer; transition: background 0.2s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .policy-action-btn:hover { background: rgba(255,255,255,0.18); }
+
+    /* ─── DISABILITY + HEAT FEATURE ─────────────────────────── */
+    .vuln-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .vuln-card {
+      border-radius: var(--radius); padding: 20px;
+      position: relative; overflow: hidden;
+      background: white;
+      border: 1.5px solid rgba(45,106,79,0.1);
+      box-shadow: var(--shadow);
+    }
+    .vuln-card .vuln-icon { font-size: 2rem; margin-bottom: 10px; display: block; }
+    .vuln-card h4 { font-family: 'Fraunces', serif; font-size: 1rem; margin-bottom: 6px; }
+    .vuln-card p { font-size: 0.78rem; color: rgba(26,26,24,0.6); line-height: 1.5; }
+    .vuln-card .risk-level {
+      display: inline-block; margin-top: 10px;
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; padding: 4px 12px; border-radius: 20px;
+    }
+
+    /* ─── COMPARE TOOL ──────────────────────────────────────── */
+    .compare-header {
+      display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px;
+      align-items: center; margin-bottom: 24px;
+    }
+    .vs-badge {
+      background: var(--canopy); color: white;
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.9rem; flex-shrink: 0;
+    }
+    .compare-select {
+      background: white; border: 1.5px solid rgba(45,106,79,0.2);
+      border-radius: 10px; padding: 10px 14px;
+      font-family: 'Syne', sans-serif; font-size: 0.9rem;
+      cursor: pointer; width: 100%;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M0 0l6 8 6-8z' fill='%232d6a4f'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center;
+      padding-right: 32px; appearance: none;
+    }
+
+    .compare-bar-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .compare-bar-left { display: flex; justify-content: flex-end; }
+    .compare-bar-right { display: flex; justify-content: flex-start; }
+    .compare-bar-label { text-align: center; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(26,26,24,0.45); }
+    .cbar { height: 30px; border-radius: 6px; transition: width 1s cubic-bezier(0.34,1.56,0.64,1); display: flex; align-items: center; }
+    .cbar.left { justify-content: flex-end; padding-right: 10px; background: var(--canopy); }
+    .cbar.right { justify-content: flex-start; padding-left: 10px; background: var(--heat-md); }
+    .cbar span { font-family: 'DM Mono', monospace; font-size: 0.78rem; color: white; }
+
+    /* ─── LEGEND ────────────────────────────────────────────── */
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+    .legend-item { display: flex; align-items: center; gap: 7px; font-size: 0.78rem; font-weight: 700; }
+    .legend-dot { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; }
+
+    /* ─── TOOLTIP ───────────────────────────────────────────── */
+    #tooltip {
+      position: fixed; background: var(--forest);
+      color: white; border-radius: 10px;
+      padding: 10px 16px; font-size: 0.8rem;
+      pointer-events: none; z-index: 999;
+      opacity: 0; transition: opacity 0.15s;
+      max-width: 220px; line-height: 1.5;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+    #tooltip.visible { opacity: 1; }
+
+    /* ─── FOOTER ────────────────────────────────────────────── */
+    footer {
+      background: var(--forest); color: rgba(255,255,255,0.55);
+      text-align: center; padding: 32px 24px;
+      font-size: 0.78rem; margin-top: 80px;
+    }
+    footer a { color: var(--sprout); text-decoration: none; }
+    footer strong { color: rgba(255,255,255,0.85); }
+
+    /* ─── PRINT / EXPORT BADGE ──────────────────────────────── */
+    .export-bar {
+      display: flex; justify-content: flex-end;
+      gap: 10px; margin-bottom: 20px;
+    }
+    .export-btn {
+      background: white; border: 1.5px solid rgba(45,106,79,0.2);
+      border-radius: 8px; padding: 7px 16px;
+      font-family: 'Syne', sans-serif; font-size: 0.78rem;
+      font-weight: 700; cursor: pointer; color: var(--canopy);
+      transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+    }
+    .export-btn:hover { background: var(--forest); color: white; border-color: var(--forest); }
+
+    /* ─── SCROLLBAR ─────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--mist); }
+    ::-webkit-scrollbar-thumb { background: var(--canopy); border-radius: 3px; }
+
+    /* ─── SKIP LINK (A11Y) ──────────────────────────────────── */
+    .skip-link {
+      position: absolute; top: -40px; left: 0;
+      background: var(--leaf); color: var(--forest);
+      padding: 8px 16px; font-weight: 700;
+      border-radius: 0 0 8px 0; transition: top 0.2s; z-index: 9999;
+    }
+    .skip-link:focus { top: 0; }
+
+    /* ─── RESPONSIVE ─────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      #neighborhood-grid { grid-template-columns: repeat(4, 1fr); }
+      .map-wrap { grid-template-columns: 1fr; }
+      .header-inner { flex-direction: column; }
+    }
+
+    /* ─── MISC UTILITIES ─────────────────────────────────────── */
+    .section-heading {
+      font-family: 'Fraunces', serif;
+      font-size: 1.6rem; font-weight: 700;
+      margin-bottom: 6px; color: var(--forest);
+    }
+    .section-sub {
+      font-size: 0.88rem; color: rgba(26,26,24,0.5);
+      margin-bottom: 28px; font-style: italic;
+      font-family: 'Fraunces', serif;
+    }
+    .highlight { color: var(--canopy); }
+
+    .data-note {
+      font-size: 0.75rem; color: rgba(26,26,24,0.4);
+      font-style: italic; margin-top: 16px;
+      border-top: 1px solid rgba(45,106,79,0.08); padding-top: 12px;
+    }
+
+    input[type=range] {
+      appearance: auto;
+      background-image: none;
+      background-color: transparent;
+      padding: 0;
+      border: none;
+      width: 100%;
+      accent-color: var(--canopy);
+    }
+    .range-val {
+      font-family: 'DM Mono', monospace; font-weight: 500;
+      font-size: 0.9rem; color: var(--canopy);
+    }
+
+    .spinner {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<a href="#main" class="skip-link">Skip to main content</a>
+<div id="tooltip" role="tooltip" aria-live="polite"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     HEADER
+═══════════════════════════════════════════════════════════ -->
+<header>
+  <div class="header-inner">
+    <div>
+      <div class="logo-mark">
+        <div class="logo-icon" aria-hidden="true">🌳</div>
+        <span class="logo-text">CanopyWatch</span>
+      </div>
+      <h1>Urban Tree <span>Equity</span><br>Mapper</h1>
+      <p class="tagline">Visualizing the green gap — and the heat gap — across Philadelphia neighborhoods.</p>
+    </div>
+    <div class="header-stats" id="header-stats" aria-label="Philadelphia summary statistics">
+      <div class="h-stat">
+        <span class="h-stat-num" id="stat-avg">20%</span>
+        <span class="h-stat-label">Avg Canopy Coverage</span>
+      </div>
+      <div class="h-stat">
+        <span class="h-stat-num" id="stat-gap">3.1×</span>
+        <span class="h-stat-label">Richest vs Poorest Gap</span>
+      </div>
+      <div class="h-stat">
+        <span class="h-stat-num" id="stat-co2">8,200</span>
+        <span class="h-stat-label">Tons CO₂/yr Captured</span>
+      </div>
+      <div class="h-stat">
+        <span class="h-stat-num" id="stat-heat">+7°F</span>
+        <span class="h-stat-label">Low-Canopy Heat Premium</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Decorative tree silhouette -->
+  <div class="canopy-bg" aria-hidden="true">
+    <svg viewBox="0 0 1440 160" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,160 L0,100 Q30,60 60,90 Q80,110 100,80 Q120,50 150,70 Q170,85 200,60 Q230,35 260,55 Q290,75 320,45 Q350,15 380,40 Q410,65 440,30 Q470,0 500,25 Q530,50 560,20 Q590,0 620,30 Q650,55 680,15 Q710,0 740,28 Q770,55 800,22 Q830,0 860,30 Q890,58 920,18 Q950,0 980,32 Q1010,60 1040,25 Q1070,0 1100,28 Q1130,52 1160,18 Q1190,0 1220,30 Q1250,58 1280,28 Q1310,5 1340,38 Q1370,65 1400,40 Q1420,25 1440,50 L1440,160 Z"
+        fill="rgba(45,106,79,0.35)" />
+      <path d="M0,160 L0,120 Q50,90 100,110 Q150,130 200,95 Q250,60 300,85 Q350,110 400,75 Q450,40 500,65 Q550,90 600,55 Q650,20 700,50 Q750,80 800,45 Q850,10 900,45 Q950,75 1000,42 Q1050,12 1100,48 Q1150,78 1200,50 Q1250,28 1300,58 Q1350,85 1400,65 Q1420,55 1440,70 L1440,160 Z"
+        fill="rgba(26,58,42,0.5)" />
+    </svg>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MAIN
+═══════════════════════════════════════════════════════════ -->
+<main id="main">
+<div class="container" style="padding-top: 40px; padding-bottom: 60px;">
+
+  <!-- NAV TABS -->
+  <nav class="nav-tabs" role="tablist" aria-label="CanopyWatch sections">
+    <button class="tab-btn active" role="tab" aria-selected="true"  aria-controls="tab-map"      onclick="switchTab('map')"     ><span class="tab-icon" aria-hidden="true">🗺️</span> Neighborhood Map</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-equity"   onclick="switchTab('equity')"  ><span class="tab-icon" aria-hidden="true">⚖️</span> Equity Dashboard</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-compare"  onclick="switchTab('compare')" ><span class="tab-icon" aria-hidden="true">📊</span> Compare</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-policy"   onclick="switchTab('policy')"  ><span class="tab-icon" aria-hidden="true">📋</span> Policy Actions</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-vuln"     onclick="switchTab('vuln')"    ><span class="tab-icon" aria-hidden="true">♿</span> Heat Vulnerability</button>
+  </nav>
+
+  <!-- ─── TAB: NEIGHBORHOOD MAP ──────────────────────────── -->
+  <section class="section active" id="tab-map" role="tabpanel" aria-labelledby="tab-map-btn">
+    <h2 class="section-heading">Philadelphia Neighborhood Canopy Coverage</h2>
+    <p class="section-sub">Click any neighborhood to see detailed equity metrics. Color = canopy coverage percentage.</p>
+
+    <div class="legend" aria-label="Canopy coverage legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#1a3a2a"></div> >30% (High)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#2d6a4f"></div> 20–30% (Moderate)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#52b788"></div> 10–20% (Low)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ef8c45"></div> 5–10% (Critical)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#d62828"></div> &lt;5% (Extreme Gap)</div>
+    </div>
+
+    <div class="map-wrap">
+      <div class="card" style="padding: 20px;">
+        <p class="card-title">Neighborhood Coverage Grid</p>
+        <div id="neighborhood-grid" role="grid" aria-label="Neighborhood canopy coverage grid"></div>
+        <p class="data-note">* Data modeled from Philadelphia Urban Tree Canopy Assessment, EPA EnviroAtlas, and American Community Survey. Equity Score incorporates income, race, disability prevalence, and heat exposure data.</p>
+      </div>
+
+      <div class="detail-panel" id="detail-panel" aria-live="polite" aria-label="Neighborhood detail">
+        <div class="detail-header">
+          <h3 id="detail-name">Select a neighborhood</h3>
+          <p id="detail-district">Click any cell to explore</p>
+        </div>
+        <div class="detail-body">
+          <div class="equity-ring-wrap">
+            <div class="equity-ring" aria-label="Equity score ring">
+              <svg width="110" height="110" viewBox="0 0 110 110">
+                <circle cx="55" cy="55" r="45" fill="none" stroke="#d8f3dc" stroke-width="10"/>
+                <circle cx="55" cy="55" r="45" fill="none" stroke="#52b788" stroke-width="10"
+                  stroke-dasharray="283" id="ring-fill" stroke-dashoffset="283"
+                  stroke-linecap="round" style="transition: stroke-dashoffset 0.8s ease, stroke 0.4s"/>
+              </svg>
+              <div class="equity-ring-label">
+                <span class="equity-ring-num" id="ring-num">—</span>
+                <span class="equity-ring-sub">Equity Score</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">🌳 Canopy Coverage</span>
+            <span class="metric-val" id="d-canopy">—</span>
+          </div>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-bg"><div class="mini-bar-fill" id="bar-canopy" style="width:0%;background:var(--canopy)"></div></div>
+          </div>
+
+          <div class="metric-row" style="margin-top:10px">
+            <span class="metric-label">🌡️ Heat Index Premium</span>
+            <span class="metric-val" id="d-heat">—</span>
+          </div>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-bg"><div class="mini-bar-fill" id="bar-heat" style="width:0%;background:var(--heat-md)"></div></div>
+          </div>
+
+          <div class="metric-row" style="margin-top:10px">
+            <span class="metric-label">💰 Median Income</span>
+            <span class="metric-val" id="d-income">—</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">♿ Disabled Residents</span>
+            <span class="metric-val" id="d-disability">—</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">🌫️ CO₂ Captured / yr</span>
+            <span class="metric-val" id="d-co2">—</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">🌊 Stormwater Managed</span>
+            <span class="metric-val" id="d-storm">—</span>
+          </div>
+
+          <div id="detail-actions" style="margin-top:16px; display:none;">
+            <p style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:rgba(26,26,24,0.45);margin-bottom:8px;">Priority Interventions</p>
+            <div id="action-chips"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── TAB: EQUITY DASHBOARD ──────────────────────────── -->
+  <section class="section" id="tab-equity" role="tabpanel">
+    <h2 class="section-heading">Equity Gap Analysis</h2>
+    <p class="section-sub">Canopy coverage inversely correlates with poverty, race, and disability prevalence — a pattern called "green gentrification in reverse."</p>
+
+    <div class="export-bar">
+      <button class="export-btn" onclick="printReport()">🖨️ Print Report</button>
+      <button class="export-btn" onclick="copyData()">📋 Copy Data</button>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:24px">
+      <div class="card">
+        <p class="card-title">Canopy Coverage by Neighborhood (vs. 30% Goal)</p>
+        <div id="equity-bar-chart" class="bar-chart"></div>
+      </div>
+      <div class="card">
+        <p class="card-title">Income vs. Canopy Correlation</p>
+        <canvas id="scatter-canvas" width="400" height="260" aria-label="Scatter plot of income versus canopy coverage" role="img"></canvas>
+        <p class="data-note">Each dot = one neighborhood. Size = Disabled population share. Red = high heat risk.</p>
+      </div>
+    </div>
+
+    <div class="grid-3" style="margin-bottom:24px" id="equity-summary-cards"></div>
+
+    <div class="card">
+      <p class="card-title">Cumulative Equity Impact of Reaching 30% Canopy Goal</p>
+      <div id="impact-bars" class="bar-chart"></div>
+    </div>
+  </section>
+
+  <!-- ─── TAB: COMPARE ───────────────────────────────────── -->
+  <section class="section" id="tab-compare" role="tabpanel">
+    <h2 class="section-heading">Side-by-Side Neighborhood Comparison</h2>
+    <p class="section-sub">Compare any two neighborhoods across six equity dimensions.</p>
+
+    <div class="card">
+      <div class="compare-header">
+        <select class="compare-select" id="compare-left" onchange="renderCompare()" aria-label="First neighborhood"></select>
+        <div class="vs-badge">VS</div>
+        <select class="compare-select" id="compare-right" onchange="renderCompare()" aria-label="Second neighborhood"></select>
+      </div>
+      <div id="compare-body"></div>
+    </div>
+  </section>
+
+  <!-- ─── TAB: POLICY ACTIONS ────────────────────────────── -->
+  <section class="section" id="tab-policy" role="tabpanel">
+    <h2 class="section-heading">Policy Action Generator</h2>
+    <p class="section-sub">Select a neighborhood and intervention type to generate data-driven policy recommendations ready for council testimony or grant applications.</p>
+
+    <div class="card">
+      <div class="policy-select-row">
+        <div class="policy-select-wrap">
+          <label for="pol-neighborhood">Neighborhood</label>
+          <select id="pol-neighborhood" aria-label="Select neighborhood for policy"></select>
+        </div>
+        <div class="policy-select-wrap">
+          <label for="pol-type">Intervention Type</label>
+          <select id="pol-type" aria-label="Select intervention type">
+            <option value="planting">Street Tree Planting Program</option>
+            <option value="park">Pocket Park Creation</option>
+            <option value="green_infra">Green Infrastructure (Stormwater)</option>
+            <option value="shade_transit">Shade at Transit Stops</option>
+            <option value="cooling">Cooling Corridor Initiative</option>
+          </select>
+        </div>
+        <div class="policy-select-wrap">
+          <label for="pol-budget">Budget Scale: <span class="range-val" id="pol-budget-val">$500K</span></label>
+          <input type="range" id="pol-budget" min="1" max="10" value="5" step="1" oninput="updateBudgetLabel(this.value)" aria-label="Budget scale slider" />
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="generate-btn" id="gen-btn" onclick="generatePolicy()" aria-label="Generate policy recommendation">
+            <span id="gen-btn-text">Generate Recommendation</span>
+            <span>🌱</span>
+          </button>
+        </div>
+      </div>
+      <div id="policy-output-wrap"></div>
+    </div>
+  </section>
+
+  <!-- ─── TAB: HEAT VULNERABILITY ────────────────────────── -->
+  <section class="section" id="tab-vuln" role="tabpanel">
+    <h2 class="section-heading">Disability & Heat Vulnerability</h2>
+    <p class="section-sub">Disabled Philadelphians face compounded climate risk: mobility barriers, medication sensitivities, and income constraints all amplify heat exposure. Tree canopy is a direct health intervention.</p>
+
+    <div class="grid-2" style="margin-bottom:24px">
+      <div class="card">
+        <p class="card-title">Why Canopy = Disability Justice</p>
+        <div class="vuln-grid" id="vuln-why"></div>
+      </div>
+      <div class="card">
+        <p class="card-title">Canopy Deficit × Disabled Population by Neighborhood</p>
+        <canvas id="vuln-canvas" width="400" height="320" aria-label="Chart of canopy deficit versus disabled population" role="img"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">Heat-Health Risk Index by Neighborhood</p>
+      <div id="heat-risk-bars" class="bar-chart" style="gap:8px"></div>
+      <p class="data-note">Heat-Health Risk combines canopy deficit, surface temperature, Disabled resident share, low-income share, and lack of AC access. Higher = more urgent intervention.</p>
+    </div>
+  </section>
+
+</div><!-- /container -->
+</main>
+
+<footer>
+  <p><strong>CanopyWatch — Urban Tree Equity Mapper</strong> &nbsp;|&nbsp; Philadelphia, PA</p>
+  <p style="margin-top:6px">Built with open data from the Philadelphia Urban Tree Canopy Assessment, EPA EnviroAtlas, US Census ACS, and PCPC. &nbsp;|&nbsp; <a href="https://github.com/meyeringn/canopy-watch">github.com/meyeringn/canopy-watch</a></p>
+  <p style="margin-top:8px; font-size:0.7rem">Data represents modeled estimates for policy planning purposes. Not for regulatory use.</p>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════
+     DATA + LOGIC
+═══════════════════════════════════════════════════════════ -->
+<script>
+/* ─── NEIGHBORHOOD DATA ─────────────────────────────────────
+   Fields: name, district, canopy (%), heatPremium (°F above city avg),
+   medianIncome ($k), disabilityPct (%), equityScore (0-100, higher = more equitable),
+   co2 (tons/yr), stormwater (million gal/yr), pctNonWhite
+──────────────────────────────────────────────────────────── */
+const neighborhoods = [
+  // Northwest — higher canopy
+  { name: "Chestnut Hill",     district: "Northwest",   canopy: 42, heatPremium: -4, income: 98,  disability: 8,  equity: 76, co2: 1820, storm: 2.4, pctNonWhite: 18 },
+  { name: "Mt. Airy",         district: "Northwest",   canopy: 38, heatPremium: -3, income: 72,  disability: 10, equity: 68, co2: 1640, storm: 2.1, pctNonWhite: 52 },
+  { name: "Roxborough",       district: "Northwest",   canopy: 34, heatPremium: -2, income: 68,  disability: 11, equity: 65, co2: 1460, storm: 1.9, pctNonWhite: 28 },
+  { name: "Germantown",       district: "Northwest",   canopy: 22, heatPremium:  1, income: 38,  disability: 16, equity: 44, co2:  940, storm: 1.2, pctNonWhite: 78 },
+  { name: "Manayunk",         district: "Northwest",   canopy: 28, heatPremium: -1, income: 62,  disability: 9,  equity: 58, co2: 1200, storm: 1.6, pctNonWhite: 24 },
+  { name: "East Falls",       district: "Northwest",   canopy: 30, heatPremium: -1, income: 74,  disability: 8,  equity: 62, co2: 1280, storm: 1.7, pctNonWhite: 30 },
+
+  // Northeast — mixed
+  { name: "Frankford",        district: "Northeast",   canopy: 12, heatPremium:  5, income: 34,  disability: 19, equity: 28, co2:  510, storm: 0.7, pctNonWhite: 72 },
+  { name: "Mayfair",          district: "Northeast",   canopy: 18, heatPremium:  3, income: 52,  disability: 13, equity: 45, co2:  770, storm: 1.0, pctNonWhite: 42 },
+  { name: "Northeast Philly", district: "Northeast",   canopy: 24, heatPremium:  0, income: 58,  disability: 12, equity: 54, co2: 1020, storm: 1.3, pctNonWhite: 34 },
+  { name: "Rhawnhurst",       district: "Northeast",   canopy: 20, heatPremium:  2, income: 55,  disability: 13, equity: 48, co2:  850, storm: 1.1, pctNonWhite: 38 },
+  { name: "Oxford Circle",    district: "Northeast",   canopy: 14, heatPremium:  4, income: 40,  disability: 17, equity: 33, co2:  595, storm: 0.8, pctNonWhite: 68 },
+  { name: "Holmesburg",       district: "Northeast",   canopy: 22, heatPremium:  1, income: 54,  disability: 12, equity: 50, co2:  930, storm: 1.2, pctNonWhite: 40 },
+
+  // North / Near North — low canopy, high poverty
+  { name: "Kensington",       district: "North",       canopy:  4, heatPremium:  9, income: 18,  disability: 28, equity: 10, co2:  170, storm: 0.2, pctNonWhite: 82 },
+  { name: "Fairhill",         district: "North",       canopy:  3, heatPremium: 10, income: 15,  disability: 30, equity:  8, co2:  128, storm: 0.2, pctNonWhite: 95 },
+  { name: "Hunting Park",     district: "North",       canopy:  6, heatPremium:  8, income: 20,  disability: 26, equity: 14, co2:  255, storm: 0.3, pctNonWhite: 91 },
+  { name: "Strawberry Mans.", district: "North",       canopy:  8, heatPremium:  7, income: 24,  disability: 24, equity: 18, co2:  340, storm: 0.4, pctNonWhite: 88 },
+  { name: "Nicetown",         district: "North",       canopy:  7, heatPremium:  7, income: 22,  disability: 25, equity: 16, co2:  298, storm: 0.4, pctNonWhite: 90 },
+  { name: "Tioga",            district: "North",       canopy:  9, heatPremium:  6, income: 26,  disability: 23, equity: 20, co2:  383, storm: 0.5, pctNonWhite: 88 },
+
+  // West Philly — mixed equity
+  { name: "West Philly / UC", district: "West",        canopy: 16, heatPremium:  4, income: 35,  disability: 18, equity: 30, co2:  680, storm: 0.9, pctNonWhite: 74 },
+  { name: "Cobbs Creek",      district: "West",        canopy: 25, heatPremium:  0, income: 36,  disability: 17, equity: 46, co2: 1060, storm: 1.4, pctNonWhite: 86 },
+  { name: "Overbrook",        district: "West",        canopy: 29, heatPremium: -1, income: 42,  disability: 15, equity: 52, co2: 1230, storm: 1.6, pctNonWhite: 78 },
+  { name: "Wynnefield",       district: "West",        canopy: 26, heatPremium:  0, income: 48,  disability: 13, equity: 50, co2: 1100, storm: 1.4, pctNonWhite: 68 },
+  { name: "Belmont",          district: "West",        canopy: 20, heatPremium:  2, income: 38,  disability: 16, equity: 40, co2:  850, storm: 1.1, pctNonWhite: 80 },
+  { name: "Carroll Park",     district: "West",        canopy: 11, heatPremium:  5, income: 28,  disability: 22, equity: 24, co2:  468, storm: 0.6, pctNonWhite: 88 },
+
+  // South Philly
+  { name: "South Philly",     district: "South",       canopy: 10, heatPremium:  6, income: 44,  disability: 14, equity: 32, co2:  425, storm: 0.6, pctNonWhite: 46 },
+  { name: "Grays Ferry",      district: "South",       canopy:  8, heatPremium:  7, income: 28,  disability: 22, equity: 18, co2:  340, storm: 0.4, pctNonWhite: 78 },
+  { name: "Point Breeze",     district: "South",       canopy: 13, heatPremium:  5, income: 52,  disability: 12, equity: 36, co2:  553, storm: 0.7, pctNonWhite: 58 },
+  { name: "Passyunk Square",  district: "South",       canopy: 15, heatPremium:  4, income: 68,  disability: 10, equity: 44, co2:  638, storm: 0.8, pctNonWhite: 34 },
+  { name: "Eastwick",         district: "South",       canopy: 18, heatPremium:  3, income: 38,  disability: 16, equity: 38, co2:  765, storm: 1.0, pctNonWhite: 72 },
+  { name: "League Island",    district: "South",       canopy: 22, heatPremium:  1, income: 46,  disability: 14, equity: 46, co2:  935, storm: 1.2, pctNonWhite: 50 },
+
+  // Center City + adjacent
+  { name: "Center City",      district: "Center",      canopy: 10, heatPremium:  5, income: 92,  disability: 8,  equity: 40, co2:  425, storm: 0.6, pctNonWhite: 30 },
+  { name: "Fairmount",        district: "Center",      canopy: 20, heatPremium:  2, income: 82,  disability: 9,  equity: 55, co2:  850, storm: 1.1, pctNonWhite: 26 },
+  { name: "Northern Liberties",district:"Center",      canopy: 14, heatPremium:  4, income: 88,  disability: 8,  equity: 42, co2:  595, storm: 0.8, pctNonWhite: 22 },
+  { name: "Fishtown",         district: "Center",      canopy: 12, heatPremium:  5, income: 80,  disability: 9,  equity: 38, co2:  510, storm: 0.7, pctNonWhite: 20 },
+  { name: "Brewerytown",      district: "Center",      canopy: 14, heatPremium:  4, income: 52,  disability: 13, equity: 36, co2:  595, storm: 0.8, pctNonWhite: 60 },
+  { name: "Spring Garden",    district: "Center",      canopy: 16, heatPremium:  3, income: 76,  disability: 9,  equity: 46, co2:  680, storm: 0.9, pctNonWhite: 28 },
+];
+
+/* ─── HELPERS ───────────────────────────────────────────── */
+function canopyColor(pct) {
+  if (pct >= 30) return '#1a3a2a';
+  if (pct >= 20) return '#2d6a4f';
+  if (pct >= 10) return '#52b788';
+  if (pct >= 5)  return '#ef8c45';
+  return '#d62828';
+}
+
+function equityColor(score) {
+  if (score >= 60) return '#52b788';
+  if (score >= 40) return '#ffd166';
+  if (score >= 25) return '#ef8c45';
+  return '#d62828';
+}
+
+function heatColor(pct) {
+  if (pct >= 8) return '#d62828';
+  if (pct >= 5) return '#ef8c45';
+  if (pct >= 2) return '#ffd166';
+  return '#52b788';
+}
+
+function formatIncome(k) { return `$${k}K`; }
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+/* ─── TOOLTIP ───────────────────────────────────────────── */
+const tip = document.getElementById('tooltip');
+function showTip(e, html) {
+  tip.innerHTML = html;
+  tip.classList.add('visible');
+  moveTip(e);
+}
+function moveTip(e) {
+  const x = Math.min(e.clientX + 14, window.innerWidth - 240);
+  const y = Math.min(e.clientY + 14, window.innerHeight - 100);
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+}
+function hideTip() { tip.classList.remove('visible'); }
+
+/* ─── TAB SWITCHING ─────────────────────────────────────── */
+function switchTab(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+  document.getElementById('tab-' + id).classList.add('active');
+  const btn = [...document.querySelectorAll('.tab-btn')].find(b => b.getAttribute('onclick').includes("'" + id + "'"));
+  if (btn) { btn.classList.add('active'); btn.setAttribute('aria-selected', 'true'); }
+
+  // Lazy renders
+  if (id === 'equity')  renderEquityTab();
+  if (id === 'compare') renderCompareTab();
+  if (id === 'policy')  renderPolicyTab();
+  if (id === 'vuln')    renderVulnTab();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NEIGHBORHOOD GRID
+══════════════════════════════════════════════════════════= */
+let selectedNeighborhood = null;
+
+function buildGrid() {
+  const grid = document.getElementById('neighborhood-grid');
+  grid.innerHTML = '';
+  neighborhoods.forEach((n, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'n-cell';
+    cell.style.background = canopyColor(n.canopy);
+    cell.setAttribute('role', 'gridcell');
+    cell.setAttribute('tabindex', '0');
+    cell.setAttribute('aria-label', `${n.name}: ${n.canopy}% canopy, equity score ${n.equity}`);
+    cell.innerHTML = `
+      <span style="font-size:0.54rem;line-height:1.15">${n.name}</span>
+      <span class="coverage-badge">${n.canopy}%</span>
+    `;
+    cell.addEventListener('click', () => selectNeighborhood(i));
+    cell.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectNeighborhood(i); }});
+    cell.addEventListener('mouseenter', e => showTip(e,
+      `<strong>${n.name}</strong><br>District: ${n.district}<br>Canopy: ${n.canopy}%<br>Equity Score: ${n.equity}/100<br>Heat Premium: +${n.heatPremium}°F`
+    ));
+    cell.addEventListener('mousemove', moveTip);
+    cell.addEventListener('mouseleave', hideTip);
+    grid.appendChild(cell);
+  });
+}
+
+function selectNeighborhood(i) {
+  const n = neighborhoods[i];
+  selectedNeighborhood = i;
+
+  // Highlight
+  document.querySelectorAll('.n-cell').forEach((c, j) => c.classList.toggle('selected', j === i));
+
+  // Update detail panel
+  document.getElementById('detail-name').textContent = n.name;
+  document.getElementById('detail-district').textContent = n.district + ' District';
+
+  document.getElementById('d-canopy').textContent = n.canopy + '%';
+  document.getElementById('d-heat').textContent = (n.heatPremium >= 0 ? '+' : '') + n.heatPremium + '°F vs city avg';
+  document.getElementById('d-income').textContent = formatIncome(n.income);
+  document.getElementById('d-disability').textContent = n.disability + '% of residents';
+  document.getElementById('d-co2').textContent = n.co2.toLocaleString() + ' tons';
+  document.getElementById('d-storm').textContent = n.storm + 'M gallons';
+
+  // Bar fills
+  setTimeout(() => {
+    document.getElementById('bar-canopy').style.width = Math.min(n.canopy / 45 * 100, 100) + '%';
+    document.getElementById('bar-heat').style.width = Math.min(Math.max(n.heatPremium + 4, 0) / 14 * 100, 100) + '%';
+  }, 50);
+
+  // Ring
+  const score = n.equity;
+  const circumference = 283;
+  const offset = circumference - (score / 100) * circumference;
+  const ringFill = document.getElementById('ring-fill');
+  ringFill.style.strokeDashoffset = offset;
+  ringFill.style.stroke = equityColor(score);
+  document.getElementById('ring-num').textContent = score;
+  document.getElementById('ring-num').style.color = equityColor(score);
+
+  // Action chips
+  const actions = getInterventions(n);
+  const chips = document.getElementById('action-chips');
+  chips.innerHTML = actions.map(a => `<span class="action-chip" style="background:${a.color}15;color:${a.color};border:1px solid ${a.color}40">${a.icon} ${a.label}</span>`).join('');
+  document.getElementById('detail-actions').style.display = 'block';
+}
+
+function getInterventions(n) {
+  const actions = [];
+  if (n.canopy < 10)  actions.push({ icon: '🌳', label: 'Urgent Tree Planting', color: '#d62828' });
+  if (n.canopy < 20)  actions.push({ icon: '🌿', label: 'Green Infrastructure', color: '#ef8c45' });
+  if (n.heatPremium > 5) actions.push({ icon: '🌡️', label: 'Cooling Corridors', color: '#ef8c45' });
+  if (n.disability > 20) actions.push({ icon: '♿', label: 'Accessible Shade', color: '#2d6a4f' });
+  if (n.income < 35)  actions.push({ icon: '💰', label: 'Equity Funding Priority', color: '#52b788' });
+  if (actions.length === 0) actions.push({ icon: '✅', label: 'Maintain Canopy', color: '#52b788' });
+  return actions;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EQUITY TAB
+══════════════════════════════════════════════════════════= */
+let equityRendered = false;
+function renderEquityTab() {
+  if (equityRendered) return;
+  equityRendered = true;
+
+  // Bar chart — sorted by canopy
+  const sorted = [...neighborhoods].sort((a, b) => a.canopy - b.canopy).slice(0, 18);
+  const barChart = document.getElementById('equity-bar-chart');
+  barChart.innerHTML = sorted.map(n => {
+    const pct = Math.min(n.canopy / 45 * 100, 100);
+    const benchmark = (30 / 45 * 100);
+    return `
+      <div class="bar-row">
+        <div class="bar-name">${n.name}</div>
+        <div class="bar-track" style="position:relative">
+          <div class="bar-fill" style="width:0%;background:${canopyColor(n.canopy)};transition-delay:${Math.random()*0.3}s" data-w="${pct}">
+            <span class="bar-val">${n.canopy}%</span>
+          </div>
+          <div class="bar-benchmark" style="left:${benchmark}%" title="30% goal"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Animate bars
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      barChart.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.w + '%');
+    }, 100);
+  });
+
+  // Summary equity cards
+  const worstEquity = [...neighborhoods].sort((a,b) => a.equity - b.equity).slice(0, 3);
+  const summaryEl = document.getElementById('equity-summary-cards');
+  const levels = [
+    { cls: 'critical', label: 'Critical — Immediate Action' },
+    { cls: 'concern',  label: 'High Concern' },
+    { cls: 'moderate', label: 'Urgent Need' },
+  ];
+  summaryEl.innerHTML = worstEquity.map((n, i) => `
+    <div class="equity-card ${levels[i].cls}">
+      <span class="score" style="color:${equityColor(n.equity)}">${n.equity}</span>
+      <h4>${n.name}</h4>
+      <p>${n.district} District — only <strong>${n.canopy}% canopy</strong>. ${n.disability}% Disabled residents face +${n.heatPremium}°F heat premium. Median income ${formatIncome(n.income)}.</p>
+      <span class="tag" style="background:${equityColor(n.equity)}20;color:${equityColor(n.equity)}">${levels[i].label}</span>
+    </div>
+  `).join('');
+
+  // Impact bars
+  const impacts = [
+    { label: 'Trees planted citywide (to reach 30%)', val: 300000, max: 300000, unit: 'trees', color: '#2d6a4f' },
+    { label: 'CO₂ captured annually (additional)', val: 12800, max: 12800, unit: 'tons/yr', color: '#52b788' },
+    { label: 'Summer deaths prevented (est.)', val: 120, max: 120, unit: 'lives/yr', color: '#d62828' },
+    { label: 'Stormwater managed (additional)', val: 4.2, max: 4.2, unit: 'B gal/yr', color: '#2196F3' },
+    { label: 'Neighborhoods reaching equity threshold', val: 22, max: neighborhoods.length, unit: 'of 36 nbhds', color: '#ef8c45' },
+  ];
+  const impactEl = document.getElementById('impact-bars');
+  impactEl.innerHTML = impacts.map(imp => `
+    <div class="bar-row">
+      <div class="bar-name">${imp.label}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:0%;background:${imp.color}" data-w="${imp.val/imp.max*100}">
+          <span class="bar-val">${typeof imp.val === 'number' && imp.val >= 1000 ? imp.val.toLocaleString() : imp.val} ${imp.unit}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  setTimeout(() => {
+    impactEl.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.w + '%');
+  }, 300);
+
+  // Scatter plot
+  drawScatter();
+}
+
+function drawScatter() {
+  const canvas = document.getElementById('scatter-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 400;
+  const H = canvas.offsetHeight || 260;
+  canvas.width = W; canvas.height = H;
+
+  const pad = { t: 20, r: 20, b: 40, l: 50 };
+  const plotW = W - pad.l - pad.r;
+  const plotH = H - pad.t - pad.b;
+
+  const maxInc = 100, maxCan = 50;
+
+  // Axes
+  ctx.strokeStyle = 'rgba(45,106,79,0.15)';
+  ctx.lineWidth = 1;
+  // grid lines
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.l + (i / 5) * plotW;
+    const y = pad.t + (i / 5) * plotH;
+    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + plotH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + plotW, y); ctx.stroke();
+  }
+
+  // Axis labels
+  ctx.fillStyle = 'rgba(26,26,24,0.45)';
+  ctx.font = '11px DM Mono, monospace';
+  ctx.textAlign = 'center';
+  for (let i = 0; i <= 5; i++) {
+    ctx.fillText(`$${i*20}K`, pad.l + (i/5)*plotW, H - 8);
+  }
+  ctx.save(); ctx.translate(14, pad.t + plotH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('Canopy %', 0, 0); ctx.restore();
+
+  // 30% goal line
+  ctx.strokeStyle = 'rgba(26,58,42,0.3)';
+  ctx.setLineDash([4, 4]);
+  const goalY = pad.t + plotH - (30 / maxCan) * plotH;
+  ctx.beginPath(); ctx.moveTo(pad.l, goalY); ctx.lineTo(pad.l + plotW, goalY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(26,58,42,0.45)'; ctx.font = '10px Syne, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('30% goal', pad.l + plotW, goalY - 3);
+
+  // Dots
+  neighborhoods.forEach(n => {
+    const x = pad.l + (n.income / maxInc) * plotW;
+    const y = pad.t + plotH - (n.canopy / maxCan) * plotH;
+    const r = 4 + (n.disability / 35) * 8; // size = disability share
+
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    const heatAlpha = Math.min(0.3 + n.heatPremium / 12, 0.9);
+    ctx.fillStyle = n.heatPremium > 5
+      ? `rgba(214,40,40,${heatAlpha})`
+      : n.heatPremium > 2
+        ? `rgba(239,140,69,${heatAlpha})`
+        : `rgba(45,106,79,${heatAlpha})`;
+    ctx.fill();
+    ctx.strokeStyle = 'white'; ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
+
+  // Legend
+  ctx.font = '10px Syne, sans-serif';
+  ctx.textAlign = 'left';
+  [['High heat risk', '#d62828'], ['Med heat risk', '#ef8c45'], ['Low heat risk', '#2d6a4f']].forEach(([lbl, col], i) => {
+    ctx.beginPath(); ctx.arc(pad.l + 8, pad.t + 10 + i * 16, 5, 0, Math.PI*2);
+    ctx.fillStyle = col; ctx.fill();
+    ctx.fillStyle = 'rgba(26,26,24,0.55)'; ctx.fillText(lbl, pad.l + 17, pad.t + 14 + i * 16);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   COMPARE TAB
+══════════════════════════════════════════════════════════= */
+let compareRendered = false;
+function renderCompareTab() {
+  if (compareRendered) return;
+  compareRendered = true;
+  const options = neighborhoods.map((n, i) => `<option value="${i}">${n.name}</option>`).join('');
+  document.getElementById('compare-left').innerHTML = options;
+  document.getElementById('compare-right').innerHTML = options;
+  document.getElementById('compare-right').selectedIndex = 12; // Kensington
+  renderCompare();
+}
+
+function renderCompare() {
+  const li = parseInt(document.getElementById('compare-left').value);
+  const ri = parseInt(document.getElementById('compare-right').value);
+  const L = neighborhoods[li], R = neighborhoods[ri];
+
+  const metrics = [
+    { label: 'Canopy Coverage', lv: L.canopy, rv: R.canopy, max: 45, unit: '%', higherBetter: true },
+    { label: 'Equity Score',    lv: L.equity, rv: R.equity, max: 100, unit: '/100', higherBetter: true },
+    { label: 'Heat Premium',    lv: L.heatPremium, rv: R.heatPremium, max: 12, unit: '°F', higherBetter: false },
+    { label: 'Disabled Residents', lv: L.disability, rv: R.disability, max: 35, unit: '%', higherBetter: null },
+    { label: 'Median Income',   lv: L.income, rv: R.income, max: 100, unit: 'K', higherBetter: null },
+    { label: 'CO₂ Captured',    lv: L.co2, rv: R.co2, max: 2000, unit: 't/yr', higherBetter: true },
+  ];
+
+  const body = document.getElementById('compare-body');
+  body.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;margin-bottom:8px;font-weight:700;font-size:0.85rem">
+      <div style="text-align:right;color:var(--canopy)">${L.name}</div>
+      <div></div>
+      <div style="color:var(--heat-md)">${R.name}</div>
+    </div>
+    ${metrics.map(m => {
+      const lw = Math.max(0, Math.min(m.lv / m.max * 100, 100));
+      const rw = Math.max(0, Math.min(m.rv / m.max * 100, 100));
+      const lBetter = m.higherBetter === true ? m.lv > m.rv : m.higherBetter === false ? m.lv < m.rv : null;
+      return `
+        <div class="compare-bar-row">
+          <div class="compare-bar-left">
+            <div class="cbar left" style="width:${lw}%;min-width:${m.lv>0?'32px':'0'}">
+              <span>${m.lv}${m.unit}${lBetter === true ? ' ✓' : ''}</span>
+            </div>
+          </div>
+          <div class="compare-bar-label">${m.label}</div>
+          <div class="compare-bar-right">
+            <div class="cbar right" style="width:${rw}%;min-width:${m.rv>0?'32px':'0'}">
+              <span>${m.rv}${m.unit}${lBetter === false ? ' ✓' : ''}</span>
+            </div>
+          </div>
+        </div>`;
+    }).join('')}
+  `;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   POLICY TAB
+══════════════════════════════════════════════════════════= */
+let policyRendered = false;
+function renderPolicyTab() {
+  if (policyRendered) return;
+  policyRendered = true;
+  const sel = document.getElementById('pol-neighborhood');
+  sel.innerHTML = [...neighborhoods].sort((a,b) => a.equity - b.equity)
+    .map((n, i) => `<option value="${neighborhoods.indexOf(n)}">${n.name} (Equity: ${n.equity})</option>`)
+    .join('');
+}
+
+const budgets = ['$100K','$250K','$500K','$750K','$1M','$2M','$3M','$5M','$7.5M','$10M+'];
+function updateBudgetLabel(v) {
+  document.getElementById('pol-budget-val').textContent = budgets[parseInt(v) - 1];
+}
+
+function generatePolicy() {
+  const ni = parseInt(document.getElementById('pol-neighborhood').value);
+  const type = document.getElementById('pol-type').value;
+  const budgetIdx = parseInt(document.getElementById('pol-budget').value) - 1;
+  const budget = budgets[budgetIdx];
+  const n = neighborhoods[ni];
+
+  const btn = document.getElementById('gen-btn');
+  const btnText = document.getElementById('gen-btn-text');
+  btnText.textContent = 'Generating...';
+  btn.disabled = true;
+
+  const typeData = {
+    planting: {
+      title: 'Street Tree Planting Program',
+      icon: '🌳',
+      description: `A targeted street tree planting initiative in ${n.name} would directly address the neighborhood's ${n.canopy}% canopy coverage — ${30 - n.canopy > 0 ? `${30 - n.canopy} percentage points below the 30% citywide goal` : 'above the 30% goal, maintaining leadership'}. With ${n.disability}% of residents identifying as Disabled and a heat premium of +${n.heatPremium}°F, shade trees along pedestrian corridors serve as both climate infrastructure and disability justice.`,
+      metrics: `At ${budget}, this initiative could plant an estimated ${Math.round(parseFloat(budget.replace(/[^0-9.]/g,'')) * (budget.includes('K') ? 1000 : 1000000) / 800)} trees, providing ${Math.round(parseFloat(budget.replace(/[^0-9.]/g,'')) * (budget.includes('K') ? 1000 : 1000000) / 800 * 0.22).toLocaleString()} tons CO₂ capture annually at maturity.`,
+      equity: `${n.name}'s median income of ${formatIncome(n.income)} and ${n.pctNonWhite}% non-white population make it a priority for Philadelphia's tree equity initiative. The City should target vacant lots, school grounds, and arterial streets first.`,
+      next: ['Draft City Council resolution', 'Apply to USFS Urban & Community Forestry Grant', 'Partner with Neighborhood Advisory Committee']
+    },
+    park: {
+      title: 'Pocket Park Creation',
+      icon: '🌿',
+      description: `${n.name} has limited accessible green space. A pocket park program targeting vacant lots would create ADA-accessible nature corridors critical for the ${n.disability}% of residents who are Disabled. Green spaces within a quarter-mile of residents reduce heat-related emergency visits by up to 23%.`,
+      metrics: `${budget} supports 2–4 pocket parks with accessible pathways, native plantings, and shade structures, creating roughly ${Math.round(parseFloat(budget.replace(/[^0-9.]/g,'')) * (budget.includes('K') ? 1000 : 1000000) / 150000 * 2)} acres of green space.`,
+      equity: `Prioritizing ADA-compliant design in pocket parks is non-negotiable given ${n.name}'s disability prevalence. Every park must include accessible seating, paved paths, and sensory-friendly planting.`,
+      next: ['Identify vacant lots through L&I data', 'Submit to Rebuild program', 'Engage local Disabled advocacy groups']
+    },
+    green_infra: {
+      title: 'Green Stormwater Infrastructure',
+      icon: '💧',
+      description: `${n.name} currently captures only ${n.storm}M gallons/yr of stormwater through existing canopy. Combined sewer overflow events disproportionately affect low-income communities like this one. Green infrastructure — tree trenches, bioswales, stormwater planters — simultaneously grows canopy and manages CSO.`,
+      metrics: `${budget} in GSI investment in ${n.name} could add ${Math.round(parseFloat(budget.replace(/[^0-9.]/g,'')) * (budget.includes('K') ? 1000 : 1000000) / 50000 * 0.5 * 10) / 10}M gallons/yr additional stormwater management, with co-benefit of 15–20% increase in canopy coverage over 10 years.`,
+      equity: `Philadelphia Water Department's Green City, Clean Waters program should prioritize ${n.name} given its ${n.canopy}% canopy and ${n.income < 40 ? 'low-income' : 'moderate-income'} designation.`,
+      next: ['Contact Philadelphia Water Department', 'Apply for EPA Sewer Overflow Control Grant', 'Pilot one city block as demonstration site']
+    },
+    shade_transit: {
+      title: 'Shade at Transit Stops',
+      icon: '🚌',
+      description: `${n.name}'s +${n.heatPremium}°F heat premium hits SEPTA riders hardest — including the ${n.disability}% of residents who are Disabled and may depend on transit without alternatives. Every bus shelter in the neighborhood should be inventoried for shade cover and prioritized for tree planting within 15 feet.`,
+      metrics: `${budget} can audit and remediate the estimated ${Math.round(parseFloat(budget.replace(/[^0-9.]/g,'')) * (budget.includes('K') ? 1000 : 1000000) / 12000)} transit stops in the neighborhood with tree planting or shade structures, reducing wait-time heat exposure by an estimated 40%.`,
+      equity: `SEPTA's Disability Advisory Committee should co-design this program. Shade at transit stops is a direct ADA and Title VI equity intervention, not merely a sustainability amenity.`,
+      next: ['Map all SEPTA stops in neighborhood', 'File joint proposal with SEPTA Sustainability', 'Engage Transit Forward Philadelphia']
+    },
+    cooling: {
+      title: 'Cooling Corridor Initiative',
+      icon: '🌊',
+      description: `A cooling corridor connects high-canopy anchor points — parks, schools, community centers — with shaded pedestrian routes through ${n.name}. For Disabled residents with heat sensitivities (medication interactions, MS, cardiovascular conditions), a cooling corridor is life-critical infrastructure.`,
+      metrics: `${budget} funds the design, planting, and 3-year maintenance of ${Math.round(parseFloat(budget.replace(/[^0-9.]/g,'')) * (budget.includes('K') ? 1000 : 1000000) / 200000)} cooling corridors of approximately 0.5 miles each, with benches, accessible water fountains, and misting stations.`,
+      equity: `${n.name}'s combination of ${n.canopy}% canopy, ${n.disability}% disabled population, and median income of ${formatIncome(n.income)} makes a cooling corridor program one of the highest-ROI climate equity investments the City can make.`,
+      next: ['Map existing high-shade anchors', 'Apply to FEMA BRIC program', 'Partner with local health systems for heat illness data']
+    }
+  };
+
+  const data = typeData[type];
+
+  setTimeout(() => {
+    const wrap = document.getElementById('policy-output-wrap');
+    wrap.innerHTML = `
+      <div class="policy-output" role="region" aria-label="Policy recommendation">
+        <h3>${data.icon} ${data.title} — ${n.name}</h3>
+
+        <div class="policy-section">
+          <div class="policy-section-title">Context & Rationale</div>
+          <p>${data.description}</p>
+        </div>
+
+        <div class="policy-section">
+          <div class="policy-section-title">Impact at ${budget}</div>
+          <p>${data.metrics}</p>
+        </div>
+
+        <div class="policy-section">
+          <div class="policy-section-title">Equity Framing</div>
+          <p>${data.equity}</p>
+        </div>
+
+        <div class="policy-section">
+          <div class="policy-section-title">Immediate Next Steps</div>
+          <p>${data.next.map((s, i) => `${i+1}. ${s}`).join('  ·  ')}</p>
+        </div>
+
+        <div class="policy-actions">
+          <button class="policy-action-btn" onclick="copyPolicyText()">📋 Copy for Testimony</button>
+          <button class="policy-action-btn" onclick="printReport()">🖨️ Print / Export</button>
+          <button class="policy-action-btn" onclick="sharePolicy('${n.name}', '${data.title}')">🔗 Share</button>
+        </div>
+      </div>
+    `;
+    btnText.textContent = 'Generate Recommendation';
+    btn.disabled = false;
+  }, 800);
+}
+
+function copyPolicyText() {
+  const txt = document.getElementById('policy-output-wrap')?.innerText || '';
+  navigator.clipboard?.writeText(txt).then(() => alert('Policy text copied to clipboard!'));
+}
+function sharePolicy(n, t) {
+  if (navigator.share) {
+    navigator.share({ title: `CanopyWatch: ${t} — ${n}`, url: window.location.href });
+  } else {
+    navigator.clipboard?.writeText(window.location.href).then(() => alert('Link copied!'));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VULNERABILITY TAB
+══════════════════════════════════════════════════════════= */
+let vulnRendered = false;
+function renderVulnTab() {
+  if (vulnRendered) return;
+  vulnRendered = true;
+
+  // Why cards
+  const reasons = [
+    { icon: '💊', title: 'Medication Thermosensitivity', risk: 'High', color: '#d62828', text: 'Many common medications — antipsychotics, diuretics, beta-blockers — impair the body\'s ability to regulate heat. Disabled people are disproportionately medicated.' },
+    { icon: '🦽', title: 'Mobility & Evacuation', risk: 'High', color: '#d62828', text: 'Wheelchair users and people with mobility impairments cannot easily self-evacuate to cooling centers. Shade along routes reduces crisis risk.' },
+    { icon: '🧠', title: 'Cognitive & Sensory Barriers', risk: 'Medium', color: '#ef8c45', text: 'Autistic and cognitively Disabled people may not recognize heat danger signals or may be in group-home settings without adequate cooling.' },
+    { icon: '🏠', title: 'Low-Income & AC Access', risk: 'High', color: '#d62828', text: 'Disabled adults have poverty rates 2× the general population. Less AC. More time outdoors. Tree canopy is free cooling infrastructure.' },
+    { icon: '❤️', title: 'Cardiovascular & Respiratory', risk: 'High', color: '#d62828', text: 'Heat worsens heart disease, COPD, and asthma — conditions overrepresented among Disabled populations and in low-canopy neighborhoods.' },
+    { icon: '🌳', title: 'Tree Canopy as Intervention', risk: 'Good', color: '#52b788', text: 'Urban trees reduce surface temperature 4–8°F, lower energy costs, reduce particulates, and support mental health — all direct disability health benefits.' },
+  ];
+  document.getElementById('vuln-why').innerHTML = reasons.map(r => `
+    <div class="vuln-card">
+      <span class="vuln-icon" aria-hidden="true">${r.icon}</span>
+      <h4>${r.title}</h4>
+      <p>${r.text}</p>
+      <span class="risk-level" style="background:${r.color}18;color:${r.color}">${r.risk === 'Good' ? '✅ Solution' : r.risk + ' Risk'}</span>
+    </div>
+  `).join('');
+
+  // Vulnerability bubble chart
+  drawVulnChart();
+
+  // Heat risk bars
+  const sorted = [...neighborhoods].sort((a, b) => {
+    const riskA = (10 - a.canopy/5) * 0.4 + a.heatPremium * 0.3 + a.disability * 0.3;
+    const riskB = (10 - b.canopy/5) * 0.4 + b.heatPremium * 0.3 + b.disability * 0.3;
+    return riskB - riskA;
+  }).slice(0, 16);
+
+  const riskBars = document.getElementById('heat-risk-bars');
+  const maxRisk = 100;
+  riskBars.innerHTML = sorted.map(n => {
+    const raw = (Math.max(0, 10 - n.canopy/5) * 0.4 + Math.max(0, n.heatPremium) * 0.3 + n.disability * 0.3);
+    const risk = Math.min(Math.round(raw * 3.5), 100);
+    return `
+      <div class="bar-row">
+        <div class="bar-name">${n.name}<br><span style="font-size:0.65rem;font-weight:400;color:rgba(26,26,24,0.45)">${n.disability}% Disabled · +${n.heatPremium}°F</span></div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:0%;background:${heatColor(n.heatPremium)}" data-w="${risk}">
+            <span class="bar-val">Risk: ${risk}/100</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+  setTimeout(() => {
+    riskBars.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.w + '%');
+  }, 200);
+}
+
+function drawVulnChart() {
+  const canvas = document.getElementById('vuln-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 400;
+  const H = canvas.offsetHeight || 320;
+  canvas.width = W; canvas.height = H;
+
+  const pad = { t: 20, r: 20, b: 45, l: 55 };
+  const plotW = W - pad.l - pad.r;
+  const plotH = H - pad.t - pad.b;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(45,106,79,0.1)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.l + (i / 5) * plotW;
+    const y = pad.t + (i / 5) * plotH;
+    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + plotH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + plotW, y); ctx.stroke();
+  }
+
+  // Axis labels
+  ctx.fillStyle = 'rgba(26,26,24,0.45)';
+  ctx.font = '11px DM Mono, monospace';
+  ctx.textAlign = 'center';
+  for (let i = 0; i <= 5; i++) {
+    ctx.fillText(`${i * 6}%`, pad.l + (i/5)*plotW, H - 10);
+  }
+  ctx.save(); ctx.translate(16, pad.t + plotH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('Canopy Deficit', 0, 0); ctx.restore();
+  ctx.textAlign = 'center';
+  ctx.fillText('Disabled Population %', pad.l + plotW/2, H - 28);
+
+  // Bubbles
+  const maxCan = 30;
+  const maxDis = 35;
+  neighborhoods.forEach(n => {
+    const deficit = Math.max(0, 30 - n.canopy);
+    const x = pad.l + (n.disability / maxDis) * plotW;
+    const y = pad.t + plotH - (deficit / maxCan) * plotH;
+    const r = 5 + (10 - n.income / 15);
+
+    const heatAlpha = 0.25 + Math.min(n.heatPremium / 12, 0.65);
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(r, 4), 0, Math.PI * 2);
+    ctx.fillStyle = n.heatPremium > 5
+      ? `rgba(214,40,40,${heatAlpha})`
+      : n.heatPremium > 2
+        ? `rgba(239,140,69,${heatAlpha})`
+        : `rgba(82,183,136,${heatAlpha})`;
+    ctx.fill();
+    ctx.strokeStyle = 'white'; ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // Label worst
+    if (deficit > 20 && n.disability > 20) {
+      ctx.fillStyle = 'rgba(26,26,24,0.7)'; ctx.font = 'bold 9px Syne, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(n.name.split(' ')[0], x, y - r - 3);
+    }
+  });
+
+  // High-risk zone
+  ctx.strokeStyle = 'rgba(214,40,40,0.25)';
+  ctx.lineWidth = 1.5; ctx.setLineDash([4,4]);
+  ctx.strokeRect(pad.l + plotW*0.6, pad.t, plotW*0.4, plotH*0.5);
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(214,40,40,0.5)'; ctx.font = 'bold 10px Syne, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('High-Risk Zone', pad.l + plotW*0.8, pad.t + 14);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UTILITY
+══════════════════════════════════════════════════════════= */
+function printReport() { window.print(); }
+function copyData() {
+  const rows = neighborhoods.map(n =>
+    [n.name, n.district, n.canopy, n.equity, n.income, n.disability, n.heatPremium, n.co2].join('\t')
+  );
+  const header = 'Neighborhood\tDistrict\tCanopy%\tEquityScore\tIncome_K\tDisability%\tHeatPremium_F\tCO2_tons\n';
+  navigator.clipboard?.writeText(header + rows.join('\n'))
+    .then(() => alert('Data copied as TSV — paste into Excel or Google Sheets.'));
+}
+
+/* ─── INIT ──────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  buildGrid();
+  // Auto-select worst equity neighborhood
+  const worstIdx = neighborhoods.reduce((mi, n, i, a) => n.equity < a[mi].equity ? i : mi, 0);
+  selectNeighborhood(worstIdx);
+});
+
+// Resize scatter on window resize
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (document.getElementById('tab-equity').classList.contains('active')) {
+      drawScatter();
+    }
+    if (document.getElementById('tab-vuln').classList.contains('active')) {
+      drawVulnChart();
+    }
+  }, 200);
+});
+</script>
+</body>
+</html>
