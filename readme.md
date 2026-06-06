@@ -152,7 +152,6 @@ CanopyWatch is part of a growing open-source civic tech portfolio at the interse
 |**SustAInable** (`sustainable-heat`)|XGBoost ML model predicting neighborhood heat illness risk by ZIP code                 |[github.com/meyeringn/sustainable-heat](https://github.com/meyeringn/sustainable-heat)    |
 |**UpLift** (`uplift-transit`)       |Predictive maintenance for SEPTA elevators/escalators — disability equity focus        |[github.com/meyeringn/uplift-transit](https://github.com/meyeringn/uplift-transit)        |
 |**DCVI**                            |Disability Climate Vulnerability Index — composite scoring with Philadelphia case study|[github.com/meyeringn/dcvi](https://github.com/meyeringn/dcvi)                            |
-|**ClimateReady Score**              |Municipal climate resilience rubric with equity as non-negotiable dimension            |[github.com/meyeringn/climateready-score](https://github.com/meyeringn/climateready-score)|
 |**CanopyWatch**                     |This tool — urban tree equity visualization and policy action generator                |You are here                                                                              |
 
 These tools are designed to work together. CanopyWatch’s heat premium data feeds into SustAInable’s heat illness risk model. DCVI’s methodology informs CanopyWatch’s disability vulnerability index. UpLift addresses the mobility side of the same transit-equity problem.
