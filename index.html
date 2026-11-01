@@ -485,7 +485,7 @@
       text-align: center; padding: 32px 24px;
       font-size: 0.78rem; margin-top: 80px;
     }
-    footer a { color: var(--sprout); text-decoration: none; }
+    footer a { color: var(--sprout); text-decoration: underline; }
     footer strong { color: rgba(255,255,255,0.85); }
 
     /* ─── PRINT / EXPORT BADGE ──────────────────────────────── */
@@ -563,12 +563,17 @@
       animation: spin 0.7s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
+  
+/* Reduced motion: respect people who get dizzy or distracted by movement */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
 </head>
 <body>
 
 <a href="#main" class="skip-link">Skip to main content</a>
-<div id="tooltip" role="tooltip" aria-live="polite"></div>
+<div id="tooltip" aria-hidden="true"></div>
 
 <!-- ═══════════════════════════════════════════════════════════
      HEADER
@@ -583,7 +588,7 @@
       <h1>Urban Tree <span>Equity</span><br>Mapper</h1>
       <p class="tagline">Visualizing the green gap — and the heat gap — across Philadelphia neighborhoods.</p>
     </div>
-    <div class="header-stats" id="header-stats" aria-label="Philadelphia summary statistics">
+    <div class="header-stats" id="header-stats" role="group" aria-label="Philadelphia summary statistics">
       <div class="h-stat">
         <span class="h-stat-num" id="stat-avg">20%</span>
         <span class="h-stat-label">Avg Canopy Coverage</span>
@@ -622,11 +627,11 @@
 
   <!-- NAV TABS -->
   <nav class="nav-tabs" role="tablist" aria-label="CanopyWatch sections">
-    <button class="tab-btn active" role="tab" aria-selected="true"  aria-controls="tab-map"      onclick="switchTab('map')"     ><span class="tab-icon" aria-hidden="true">🗺️</span> Neighborhood Map</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-equity"   onclick="switchTab('equity')"  ><span class="tab-icon" aria-hidden="true">⚖️</span> Equity Dashboard</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-compare"  onclick="switchTab('compare')" ><span class="tab-icon" aria-hidden="true">📊</span> Compare</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-policy"   onclick="switchTab('policy')"  ><span class="tab-icon" aria-hidden="true">📋</span> Policy Actions</button>
-    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-vuln"     onclick="switchTab('vuln')"    ><span class="tab-icon" aria-hidden="true">♿</span> Heat Vulnerability</button>
+    <button class="tab-btn active" role="tab" id="tab-map-btn" aria-selected="true"  aria-controls="tab-map"      onclick="switchTab('map')"     ><span class="tab-icon" aria-hidden="true">🗺️</span> Neighborhood Map</button>
+    <button class="tab-btn"        role="tab" id="tab-equity-btn" aria-selected="false" aria-controls="tab-equity"   onclick="switchTab('equity')"  ><span class="tab-icon" aria-hidden="true">⚖️</span> Equity Dashboard</button>
+    <button class="tab-btn"        role="tab" id="tab-compare-btn" aria-selected="false" aria-controls="tab-compare"  onclick="switchTab('compare')" ><span class="tab-icon" aria-hidden="true">📊</span> Compare</button>
+    <button class="tab-btn"        role="tab" id="tab-policy-btn" aria-selected="false" aria-controls="tab-policy"   onclick="switchTab('policy')"  ><span class="tab-icon" aria-hidden="true">📋</span> Policy Actions</button>
+    <button class="tab-btn"        role="tab" id="tab-vuln-btn" aria-selected="false" aria-controls="tab-vuln"     onclick="switchTab('vuln')"    ><span class="tab-icon" aria-hidden="true">♿</span> Heat Vulnerability</button>
   </nav>
 
   <!-- ─── TAB: NEIGHBORHOOD MAP ──────────────────────────── -->
@@ -634,7 +639,7 @@
     <h2 class="section-heading">Philadelphia Neighborhood Canopy Coverage</h2>
     <p class="section-sub">Click any neighborhood to see detailed equity metrics. Color = canopy coverage percentage.</p>
 
-    <div class="legend" aria-label="Canopy coverage legend">
+    <div class="legend" role="group" aria-label="Canopy coverage legend">
       <div class="legend-item"><div class="legend-dot" style="background:#1a3a2a"></div> >30% (High)</div>
       <div class="legend-item"><div class="legend-dot" style="background:#2d6a4f"></div> 20–30% (Moderate)</div>
       <div class="legend-item"><div class="legend-dot" style="background:#52b788"></div> 10–20% (Low)</div>
@@ -645,18 +650,18 @@
     <div class="map-wrap">
       <div class="card" style="padding: 20px;">
         <p class="card-title">Neighborhood Coverage Grid</p>
-        <div id="neighborhood-grid" role="grid" aria-label="Neighborhood canopy coverage grid"></div>
+        <div id="neighborhood-grid" role="group" aria-label="Neighborhood canopy coverage grid"></div>
         <p class="data-note">* Data modeled from Philadelphia Urban Tree Canopy Assessment, EPA EnviroAtlas, and American Community Survey. Equity Score incorporates income, race, disability prevalence, and heat exposure data.</p>
       </div>
 
-      <div class="detail-panel" id="detail-panel" aria-live="polite" aria-label="Neighborhood detail">
+      <div class="detail-panel" id="detail-panel" role="region" aria-live="polite" aria-label="Neighborhood detail">
         <div class="detail-header">
           <h3 id="detail-name">Select a neighborhood</h3>
           <p id="detail-district">Click any cell to explore</p>
         </div>
         <div class="detail-body">
           <div class="equity-ring-wrap">
-            <div class="equity-ring" aria-label="Equity score ring">
+            <div class="equity-ring" role="img" aria-label="Equity score ring">
               <svg width="110" height="110" viewBox="0 0 110 110">
                 <circle cx="55" cy="55" r="45" fill="none" stroke="#d8f3dc" stroke-width="10"/>
                 <circle cx="55" cy="55" r="45" fill="none" stroke="#52b788" stroke-width="10"
@@ -954,7 +959,8 @@ function buildGrid() {
     const cell = document.createElement('div');
     cell.className = 'n-cell';
     cell.style.background = canopyColor(n.canopy);
-    cell.setAttribute('role', 'gridcell');
+    cell.setAttribute('role', 'button');
+    cell.style.color = (n.canopy >= 5 && n.canopy < 20) ? '#0b1f14' : '#ffffff';
     cell.setAttribute('tabindex', '0');
     cell.setAttribute('aria-label', `${n.name}: ${n.canopy}% canopy, equity score ${n.equity}`);
     cell.innerHTML = `
