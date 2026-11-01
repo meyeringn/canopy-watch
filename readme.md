@@ -2,6 +2,8 @@
 
 > *Visualizing the green gap — and the heat gap — across Philadelphia neighborhoods.*
 
+**Data last verified:** November 2026
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Data: Open](https://img.shields.io/badge/Data-Open%20Source-52b788)](https://opendataphilly.org)
 [![Tool: Self-Contained](https://img.shields.io/badge/Tool-Single%20HTML-1a3a2a)](index.html)
