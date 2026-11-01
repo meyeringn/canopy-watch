@@ -165,7 +165,7 @@
       padding: 10px 22px; border: none; background: transparent;
       border-radius: 11px; cursor: pointer; font-family: 'Syne', sans-serif;
       font-size: 0.88rem; font-weight: 700; letter-spacing: 0.04em;
-      color: rgba(26,26,24,0.5); transition: all 0.2s;
+      color: #57544e; transition: all 0.2s;
       display: flex; align-items: center; gap: 7px;
     }
     .tab-btn:hover { color: var(--canopy); background: var(--ghost); }
@@ -236,7 +236,7 @@
 
     .n-cell .coverage-badge {
       position: absolute; top: 4px; right: 4px;
-      background: rgba(255,255,255,0.25);
+      background: rgba(0,0,0,0.35); color: #ffffff;
       border-radius: 4px; font-size: 0.52rem;
       padding: 1px 4px; font-family: 'DM Mono', monospace;
     }
@@ -269,7 +269,7 @@
     }
     .metric-row:last-child { border-bottom: none; }
     .metric-label {
-      font-size: 0.78rem; color: rgba(26,26,24,0.55);
+      font-size: 0.78rem; color: #57544e;
       font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.06em;
     }
@@ -297,7 +297,7 @@
       font-family: 'DM Mono', monospace;
     }
     .equity-ring-num { font-size: 1.6rem; font-weight: 500; }
-    .equity-ring-sub { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(26,26,24,0.45); }
+    .equity-ring-sub { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: #57544e; }
 
     .action-chip {
       display: inline-flex; align-items: center; gap: 6px;
@@ -456,7 +456,7 @@
     .compare-bar-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; margin-bottom: 12px; }
     .compare-bar-left { display: flex; justify-content: flex-end; }
     .compare-bar-right { display: flex; justify-content: flex-start; }
-    .compare-bar-label { text-align: center; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(26,26,24,0.45); }
+    .compare-bar-label { text-align: center; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #57544e; }
     .cbar { height: 30px; border-radius: 6px; transition: width 1s cubic-bezier(0.34,1.56,0.64,1); display: flex; align-items: center; }
     .cbar.left { justify-content: flex-end; padding-right: 10px; background: var(--canopy); }
     .cbar.right { justify-content: flex-start; padding-left: 10px; background: var(--heat-md); }
@@ -530,14 +530,14 @@
       margin-bottom: 6px; color: var(--forest);
     }
     .section-sub {
-      font-size: 0.88rem; color: rgba(26,26,24,0.5);
+      font-size: 0.88rem; color: #57544e;
       margin-bottom: 28px; font-style: italic;
       font-family: 'Fraunces', serif;
     }
     .highlight { color: var(--canopy); }
 
     .data-note {
-      font-size: 0.75rem; color: rgba(26,26,24,0.4);
+      font-size: 0.75rem; color: #57544e;
       font-style: italic; margin-top: 16px;
       border-top: 1px solid rgba(45,106,79,0.08); padding-top: 12px;
     }
@@ -709,7 +709,7 @@
           </div>
 
           <div id="detail-actions" style="margin-top:16px; display:none;">
-            <p style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:rgba(26,26,24,0.45);margin-bottom:8px;">Priority Interventions</p>
+            <p style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color: #57544e;margin-bottom:8px;">Priority Interventions</p>
             <div id="action-chips"></div>
           </div>
         </div>
@@ -826,7 +826,7 @@
 
 <footer>
   <p><strong>CanopyWatch — Urban Tree Equity Mapper</strong> &nbsp;|&nbsp; Philadelphia, PA</p>
-  <p style="margin-top:6px">Built with open data from the Philadelphia Urban Tree Canopy Assessment, EPA EnviroAtlas, US Census ACS, and PCPC. &nbsp;|&nbsp; <a href="https://github.com/meyeringn/canopy-watch">github.com/meyeringn/canopy-watch</a></p>
+  <p style="margin-top:6px">Built with open data from the Philadelphia Urban Tree Canopy Assessment, EPA EnviroAtlas, US Census ACS, and PCPC. &nbsp;|&nbsp; <a href="https://github.com/meyeringn/canopy-watch">github.com/meyeringn/canopy-watch</a> &nbsp;|&nbsp; <a href="https://github.com/meyeringn/canopy-watch/blob/main/ACCESSIBILITY.md">Accessibility statement</a></p>
   <p style="margin-top:6px">Data last verified: November 2026</p>
   <p style="margin-top:8px; font-size:0.7rem">Data represents modeled estimates for policy planning purposes. Not for regulatory use.</p>
 </footer>
@@ -1015,7 +1015,7 @@ function selectNeighborhood(i) {
   // Action chips
   const actions = getInterventions(n);
   const chips = document.getElementById('action-chips');
-  chips.innerHTML = actions.map(a => `<span class="action-chip" style="background:${a.color}15;color:${a.color};border:1px solid ${a.color}40">${a.icon} ${a.label}</span>`).join('');
+  chips.innerHTML = actions.map(a => `<span class="action-chip" style="background:${a.color}15;color:var(--ink);border:1px solid ${a.color};border-left:4px solid ${a.color}">${a.icon} ${a.label}</span>`).join('');
   document.getElementById('detail-actions').style.display = 'block';
 }
 
@@ -1405,7 +1405,7 @@ function renderVulnTab() {
     const risk = Math.min(Math.round(raw * 3.5), 100);
     return `
       <div class="bar-row">
-        <div class="bar-name">${n.name}<br><span style="font-size:0.65rem;font-weight:400;color:rgba(26,26,24,0.45)">${n.disability}% Disabled · +${n.heatPremium}°F</span></div>
+        <div class="bar-name">${n.name}<br><span style="font-size:0.65rem;font-weight:400;color: #57544e">${n.disability}% Disabled · +${n.heatPremium}°F</span></div>
         <div class="bar-track">
           <div class="bar-fill" style="width:0%;background:${heatColor(n.heatPremium)}" data-w="${risk}">
             <span class="bar-val">Risk: ${risk}/100</span>
